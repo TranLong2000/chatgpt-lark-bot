@@ -1,0 +1,11 @@
+{
+  "name": "lark-chatgpt-vercel",
+  "version": "1.0.0",
+  "main": "api/webhook.js",
+  "scripts": {
+    "start": "node api/webhook.js"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.1"
+  }
+}
