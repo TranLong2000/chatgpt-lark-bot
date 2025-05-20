@@ -1,15 +1,9 @@
 const axios = require('axios');
 
-const LARK_BASE_URL = 'https://open.larksuite.com.vn'; // ✅ Lark Việt Nam
+const LARK_BASE_URL = 'https://open.larksuite.com.vn';
 const LARK_APP_ID = process.env.LARK_APP_ID;
 const LARK_APP_SECRET = process.env.LARK_APP_SECRET;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-export const config = {
-  api: {
-    bodyParser: true,
-  },
-};
 
 let larkTokenCache = {
   token: null,
@@ -30,7 +24,6 @@ async function getLarkAccessToken() {
   const token = res.data.tenant_access_token;
   larkTokenCache.token = token;
   larkTokenCache.expiresAt = now + res.data.expire;
-
   return token;
 }
 
@@ -51,35 +44,41 @@ async function callChatGPT(message) {
   return res.data.choices[0].message.content;
 }
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+// Cấu hình để xử lý JSON
+module.exports.config = {
+  api: {
+    bodyParser: true,
+  },
+};
+
+// Hàm xử lý chính
+module.exports.default = async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
+  }
 
   const body = req.body;
 
-  // 1. Xác thực webhook ban đầu
+  // 1. Xác minh webhook từ Lark
   if (body?.type === 'url_verification') {
     return res.status(200).json({ challenge: body.challenge });
   }
 
-  // 2. Xử lý sự kiện tin nhắn
+  // 2. Nhận tin nhắn
   const eventType = body?.header?.event_type;
-
   if (eventType === 'im.message.receive_v1') {
     try {
       const messageContent = body.event.message?.content;
       const chatId = body.event.message.chat_id;
 
-      // Parse nội dung tin nhắn
       const parsed = JSON.parse(messageContent);
       const userMessage = parsed.text || '';
 
-      console.log('📨 Tin nhắn nhận:', userMessage);
+      console.log('📨 Nhận tin nhắn:', userMessage);
 
-      // Gọi ChatGPT để tạo phản hồi
       const reply = await callChatGPT(userMessage);
-      const accessToken = await getLarkAccessToken();
+      const token = await getLarkAccessToken();
 
-      // Gửi tin nhắn phản hồi
       await axios.post(
         `${LARK_BASE_URL}/open-apis/im/v1/messages`,
         {
@@ -89,7 +88,7 @@ export default async function handler(req, res) {
         },
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           params: {
@@ -98,9 +97,9 @@ export default async function handler(req, res) {
         }
       );
     } catch (error) {
-      console.error('❌ Lỗi xử lý:', error.response?.data || error.message);
+      console.error('❌ Lỗi xử lý webhook:', error.response?.data || error.message);
     }
   }
 
   res.status(200).json({ message: 'OK' });
-}
+};
