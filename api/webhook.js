@@ -44,14 +44,12 @@ async function callChatGPT(message) {
   return res.data.choices[0].message.content;
 }
 
-// Cấu hình để xử lý JSON
 module.exports.config = {
   api: {
     bodyParser: true,
   },
 };
 
-// Hàm xử lý chính
 module.exports.default = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method Not Allowed' });
@@ -59,22 +57,19 @@ module.exports.default = async function handler(req, res) {
 
   const body = req.body;
 
-  // 1. Xác minh webhook từ Lark
+  // ✅ Bắt buộc: Trả về JSON đúng format cho Lark xác minh webhook
   if (body?.type === 'url_verification') {
     return res.status(200).json({ challenge: body.challenge });
   }
 
-  // 2. Nhận tin nhắn
-  const eventType = body?.header?.event_type;
-  if (eventType === 'im.message.receive_v1') {
+  // ✅ Xử lý tin nhắn đến từ Lark
+  if (body?.header?.event_type === 'im.message.receive_v1') {
     try {
       const messageContent = body.event.message?.content;
       const chatId = body.event.message.chat_id;
 
       const parsed = JSON.parse(messageContent);
       const userMessage = parsed.text || '';
-
-      console.log('📨 Nhận tin nhắn:', userMessage);
 
       const reply = await callChatGPT(userMessage);
       const token = await getLarkAccessToken();
@@ -97,9 +92,10 @@ module.exports.default = async function handler(req, res) {
         }
       );
     } catch (error) {
-      console.error('❌ Lỗi xử lý webhook:', error.response?.data || error.message);
+      console.error('❌ Lỗi xử lý tin nhắn:', error.response?.data || error.message);
     }
   }
 
-  res.status(200).json({ message: 'OK' });
+  // ✅ Luôn trả JSON hợp lệ
+  return res.status(200).json({ message: 'OK' });
 };
